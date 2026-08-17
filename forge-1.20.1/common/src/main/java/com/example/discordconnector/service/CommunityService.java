@@ -1,22 +1,23 @@
 package com.example.discordconnector.service;
 
 import com.example.discordconnector.api.ApiClient;
+import com.example.discordconnector.logging.CommonLogger;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.PlayerInfo;
 import java.time.Instant;
-import java.util.logging.Logger;
 
 public class CommunityService {
-  private static final Logger LOGGER = Logger.getLogger(CommunityService.class.getName());
   private final ApiClient apiClient;
+  private final CommonLogger logger;
 
-  public CommunityService(ApiClient apiClient) {
+  public CommunityService(ApiClient apiClient, CommonLogger logger) {
     this.apiClient = apiClient;
+    this.logger = logger;
   }
 
   public void onPlayerJoin(PlayerInfo playerInfo) {
-    LOGGER.info(() -> String.format(
+    logger.info(String.format(
         "Player joined: server_id=%s, uuid=%s, name=%s",
         playerInfo.serverId(),
         playerInfo.uuid(),
@@ -25,7 +26,7 @@ public class CommunityService {
   }
 
   public void onPlayerLeave(PlayerInfo playerInfo) {
-    LOGGER.info(() -> String.format(
+    logger.info(String.format(
         "Player left: server_id=%s, uuid=%s, name=%s",
         playerInfo.serverId(),
         playerInfo.uuid(),

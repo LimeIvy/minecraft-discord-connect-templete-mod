@@ -6,6 +6,7 @@ import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.LinkCodeRequest;
 import com.example.discordconnector.model.LinkCodeResponse;
 import com.example.discordconnector.model.ServerEventRequest;
+import com.example.discordconnector.logging.CommonLogger;
 import com.example.discordconnector.util.JsonUtil;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -18,19 +19,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.logging.Logger;
 
 public class ApiClient implements AutoCloseable {
-  private static final Logger LOGGER = Logger.getLogger(ApiClient.class.getName());
   private static final int MAX_ATTEMPTS = 3;
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
   private final ExecutorService executorService;
   private final HttpClient httpClient;
   private final ApiConfig apiConfig;
+  private final CommonLogger logger;
 
-  public ApiClient(ApiConfig apiConfig) {
+  public ApiClient(ApiConfig apiConfig, CommonLogger logger) {
     this.apiConfig = apiConfig;
+    this.logger = logger;
     this.executorService = Executors.newSingleThreadExecutor(new ApiThreadFactory());
     this.httpClient = HttpClient.newBuilder()
         .connectTimeout(REQUEST_TIMEOUT)
@@ -81,8 +82,8 @@ public class ApiClient implements AutoCloseable {
   }
 
   private void sendPost(String path, String serverId, String requestBody) {
-    LOGGER.fine(() -> String.format(
-        "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
+    logger.debug(String.format(
+        "Prepared API request: method=POST, path=%s, server_id=%s, api_url=%s, api_key_configured=%s, body=%s",
         path,
         serverId,
         apiConfig.apiUrl(),
@@ -90,7 +91,7 @@ public class ApiClient implements AutoCloseable {
         requestBody));
 
     if (!apiConfig.hasApiKey()) {
-      LOGGER.warning(() -> String.format(
+      logger.warn(String.format(
           "Skipped API request because api_key is not configured: path=%s, server_id=%s",
           path,
           serverId));
@@ -99,7 +100,7 @@ public class ApiClient implements AutoCloseable {
 
     URI uri = resolveUri(path);
     if (uri == null) {
-      LOGGER.warning(() -> String.format(
+      logger.warn(String.format(
           "Skipped API request because api_url is invalid: path=%s, server_id=%s, api_url=%s",
           path,
           serverId,
@@ -119,8 +120,8 @@ public class ApiClient implements AutoCloseable {
   }
 
   private CompletableFuture<String> sendPostForString(String path, String serverId, String requestBody) {
-    LOGGER.fine(() -> String.format(
-        "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
+    logger.debug(String.format(
+        "Prepared API request: method=POST, path=%s, server_id=%s, api_url=%s, api_key_configured=%s, body=%s",
         path,
         serverId,
         apiConfig.apiUrl(),
@@ -172,7 +173,7 @@ public class ApiClient implements AutoCloseable {
         .whenCompleteAsync((response, throwable) -> {
           if (throwable != null) {
             if (attempt < MAX_ATTEMPTS) {
-              LOGGER.warning(() -> String.format(
+              logger.warn(String.format(
                   "API request failed; retrying: path=%s, server_id=%s, attempt=%d, max_attempts=%d, error=%s",
                   path,
                   serverId,
@@ -188,7 +189,7 @@ public class ApiClient implements AutoCloseable {
 
           int statusCode = response.statusCode();
           if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
-            LOGGER.warning(() -> String.format(
+            logger.warn(String.format(
                 "API request returned retryable status; retrying: path=%s, server_id=%s, status=%d, attempt=%d, max_attempts=%d",
                 path,
                 serverId,
@@ -205,7 +206,7 @@ public class ApiClient implements AutoCloseable {
             return;
           }
 
-          LOGGER.info(() -> String.format(
+          logger.info(String.format(
               "API request completed: path=%s, server_id=%s, status=%d, attempts=%d",
               path,
               serverId,
@@ -222,7 +223,7 @@ public class ApiClient implements AutoCloseable {
       int attempt,
       Throwable throwable) {
     if (attempt < MAX_ATTEMPTS) {
-      LOGGER.warning(() -> String.format(
+      logger.warn(String.format(
           "API request failed; retrying: path=%s, server_id=%s, attempt=%d, max_attempts=%d, error=%s",
           path,
           serverId,
@@ -233,7 +234,7 @@ public class ApiClient implements AutoCloseable {
       return;
     }
 
-    LOGGER.warning(() -> String.format(
+    logger.warn(String.format(
         "API request failed: path=%s, server_id=%s, attempts=%d, error=%s",
         path,
         serverId,
@@ -248,7 +249,7 @@ public class ApiClient implements AutoCloseable {
       int attempt,
       int statusCode) {
     if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
-      LOGGER.warning(() -> String.format(
+      logger.warn(String.format(
           "API request returned retryable status; retrying: path=%s, server_id=%s, status=%d, attempt=%d, max_attempts=%d",
           path,
           serverId,
@@ -264,7 +265,7 @@ public class ApiClient implements AutoCloseable {
 
   private void logResponse(String path, String serverId, int statusCode, int attempts) {
     if (statusCode >= 200 && statusCode < 300) {
-      LOGGER.info(() -> String.format(
+      logger.info(String.format(
           "API request completed: path=%s, server_id=%s, status=%d, attempts=%d",
           path,
           serverId,
@@ -273,7 +274,7 @@ public class ApiClient implements AutoCloseable {
       return;
     }
 
-    LOGGER.warning(() -> String.format(
+    logger.warn(String.format(
         "API request returned non-success status: path=%s, server_id=%s, status=%d, attempts=%d",
         path,
         serverId,
