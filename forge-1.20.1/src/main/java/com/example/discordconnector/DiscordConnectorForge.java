@@ -1,6 +1,7 @@
 package com.example.discordconnector;
 
 import com.example.discordconnector.api.ApiClient;
+import com.example.discordconnector.config.ForgeApiConfig;
 import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.event.HeartbeatEventHandler;
 import com.example.discordconnector.event.PlayerEventHandler;
@@ -28,7 +29,7 @@ public class DiscordConnectorForge {
   public DiscordConnectorForge() {
     ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ForgeConfig.SPEC);
 
-    ApiClient apiClient = new ApiClient();
+    ApiClient apiClient = new ApiClient(new ForgeApiConfig());
     HeartbeatService heartbeatService = new HeartbeatService(apiClient);
     linkService = new LinkService(apiClient);
 

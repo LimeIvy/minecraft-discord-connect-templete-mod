@@ -1,7 +1,5 @@
 package com.example.discordconnector.api;
 
-import com.example.discordconnector.DiscordConnectorForge;
-import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.model.HeartbeatRequest;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
@@ -20,15 +18,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.logging.Logger;
 
 public class ApiClient implements AutoCloseable {
+  private static final Logger LOGGER = Logger.getLogger(ApiClient.class.getName());
   private static final int MAX_ATTEMPTS = 3;
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
   private final ExecutorService executorService;
   private final HttpClient httpClient;
+  private final ApiConfig apiConfig;
 
-  public ApiClient() {
+  public ApiClient(ApiConfig apiConfig) {
+    this.apiConfig = apiConfig;
     this.executorService = Executors.newSingleThreadExecutor(new ApiThreadFactory());
     this.httpClient = HttpClient.newBuilder()
         .connectTimeout(REQUEST_TIMEOUT)
@@ -79,29 +81,29 @@ public class ApiClient implements AutoCloseable {
   }
 
   private void sendPost(String path, String serverId, String requestBody) {
-    DiscordConnectorForge.LOGGER.debug(
+    LOGGER.fine(() -> String.format(
         "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
         path,
         serverId,
-        ForgeConfig.apiUrl(),
-        ForgeConfig.hasApiKey(),
-        requestBody);
+        apiConfig.apiUrl(),
+        apiConfig.hasApiKey(),
+        requestBody));
 
-    if (!ForgeConfig.hasApiKey()) {
-      DiscordConnectorForge.LOGGER.warn(
-          "Skipped API request because api_key is not configured: path={}, server_id={}",
+    if (!apiConfig.hasApiKey()) {
+      LOGGER.warning(() -> String.format(
+          "Skipped API request because api_key is not configured: path=%s, server_id=%s",
           path,
-          serverId);
+          serverId));
       return;
     }
 
     URI uri = resolveUri(path);
     if (uri == null) {
-      DiscordConnectorForge.LOGGER.warn(
-          "Skipped API request because api_url is invalid: path={}, server_id={}, api_url={}",
+      LOGGER.warning(() -> String.format(
+          "Skipped API request because api_url is invalid: path=%s, server_id=%s, api_url=%s",
           path,
           serverId,
-          ForgeConfig.apiUrl());
+          apiConfig.apiUrl()));
       return;
     }
 
@@ -109,7 +111,7 @@ public class ApiClient implements AutoCloseable {
         .uri(uri)
         .timeout(REQUEST_TIMEOUT)
         .header("Content-Type", "application/json")
-        .header("Authorization", "Bearer " + ForgeConfig.apiKey())
+        .header("Authorization", "Bearer " + apiConfig.apiKey())
         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
         .build();
 
@@ -117,15 +119,15 @@ public class ApiClient implements AutoCloseable {
   }
 
   private CompletableFuture<String> sendPostForString(String path, String serverId, String requestBody) {
-    DiscordConnectorForge.LOGGER.debug(
+    LOGGER.fine(() -> String.format(
         "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
         path,
         serverId,
-        ForgeConfig.apiUrl(),
-        ForgeConfig.hasApiKey(),
-        requestBody);
+        apiConfig.apiUrl(),
+        apiConfig.hasApiKey(),
+        requestBody));
 
-    if (!ForgeConfig.hasApiKey()) {
+    if (!apiConfig.hasApiKey()) {
       return CompletableFuture.failedFuture(
           new IllegalStateException("api_key is not configured"));
     }
@@ -133,14 +135,14 @@ public class ApiClient implements AutoCloseable {
     URI uri = resolveUri(path);
     if (uri == null) {
       return CompletableFuture.failedFuture(
-          new IllegalStateException("api_url is invalid: " + ForgeConfig.apiUrl()));
+          new IllegalStateException("api_url is invalid: " + apiConfig.apiUrl()));
     }
 
     HttpRequest request = HttpRequest.newBuilder()
         .uri(uri)
         .timeout(REQUEST_TIMEOUT)
         .header("Content-Type", "application/json")
-        .header("Authorization", "Bearer " + ForgeConfig.apiKey())
+        .header("Authorization", "Bearer " + apiConfig.apiKey())
         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
         .build();
 
@@ -170,13 +172,13 @@ public class ApiClient implements AutoCloseable {
         .whenCompleteAsync((response, throwable) -> {
           if (throwable != null) {
             if (attempt < MAX_ATTEMPTS) {
-              DiscordConnectorForge.LOGGER.warn(
-                  "API request failed; retrying: path={}, server_id={}, attempt={}, max_attempts={}, error={}",
+              LOGGER.warning(() -> String.format(
+                  "API request failed; retrying: path=%s, server_id=%s, attempt=%d, max_attempts=%d, error=%s",
                   path,
                   serverId,
                   attempt,
                   MAX_ATTEMPTS,
-                  throwable.toString());
+                  throwable));
               sendWithRetryForString(request, path, serverId, attempt + 1, result);
               return;
             }
@@ -186,13 +188,13 @@ public class ApiClient implements AutoCloseable {
 
           int statusCode = response.statusCode();
           if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
-            DiscordConnectorForge.LOGGER.warn(
-                "API request returned retryable status; retrying: path={}, server_id={}, status={}, attempt={}, max_attempts={}",
+            LOGGER.warning(() -> String.format(
+                "API request returned retryable status; retrying: path=%s, server_id=%s, status=%d, attempt=%d, max_attempts=%d",
                 path,
                 serverId,
                 statusCode,
                 attempt,
-                MAX_ATTEMPTS);
+                MAX_ATTEMPTS));
             sendWithRetryForString(request, path, serverId, attempt + 1, result);
             return;
           }
@@ -203,12 +205,12 @@ public class ApiClient implements AutoCloseable {
             return;
           }
 
-          DiscordConnectorForge.LOGGER.info(
-              "API request completed: path={}, server_id={}, status={}, attempts={}",
+          LOGGER.info(() -> String.format(
+              "API request completed: path=%s, server_id=%s, status=%d, attempts=%d",
               path,
               serverId,
               statusCode,
-              attempt);
+              attempt));
           result.complete(response.body());
         }, executorService);
   }
@@ -220,23 +222,23 @@ public class ApiClient implements AutoCloseable {
       int attempt,
       Throwable throwable) {
     if (attempt < MAX_ATTEMPTS) {
-      DiscordConnectorForge.LOGGER.warn(
-          "API request failed; retrying: path={}, server_id={}, attempt={}, max_attempts={}, error={}",
+      LOGGER.warning(() -> String.format(
+          "API request failed; retrying: path=%s, server_id=%s, attempt=%d, max_attempts=%d, error=%s",
           path,
           serverId,
           attempt,
           MAX_ATTEMPTS,
-          throwable.toString());
+          throwable));
       sendWithRetry(request, path, serverId, attempt + 1);
       return;
     }
 
-    DiscordConnectorForge.LOGGER.warn(
-        "API request failed: path={}, server_id={}, attempts={}, error={}",
+    LOGGER.warning(() -> String.format(
+        "API request failed: path=%s, server_id=%s, attempts=%d, error=%s",
         path,
         serverId,
         attempt,
-        throwable.toString());
+        throwable));
   }
 
   private void handleResponse(
@@ -246,13 +248,13 @@ public class ApiClient implements AutoCloseable {
       int attempt,
       int statusCode) {
     if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
-      DiscordConnectorForge.LOGGER.warn(
-          "API request returned retryable status; retrying: path={}, server_id={}, status={}, attempt={}, max_attempts={}",
+      LOGGER.warning(() -> String.format(
+          "API request returned retryable status; retrying: path=%s, server_id=%s, status=%d, attempt=%d, max_attempts=%d",
           path,
           serverId,
           statusCode,
           attempt,
-          MAX_ATTEMPTS);
+          MAX_ATTEMPTS));
       sendWithRetry(request, path, serverId, attempt + 1);
       return;
     }
@@ -262,21 +264,21 @@ public class ApiClient implements AutoCloseable {
 
   private void logResponse(String path, String serverId, int statusCode, int attempts) {
     if (statusCode >= 200 && statusCode < 300) {
-      DiscordConnectorForge.LOGGER.info(
-          "API request completed: path={}, server_id={}, status={}, attempts={}",
+      LOGGER.info(() -> String.format(
+          "API request completed: path=%s, server_id=%s, status=%d, attempts=%d",
           path,
           serverId,
           statusCode,
-          attempts);
+          attempts));
       return;
     }
 
-    DiscordConnectorForge.LOGGER.warn(
-        "API request returned non-success status: path={}, server_id={}, status={}, attempts={}",
+    LOGGER.warning(() -> String.format(
+        "API request returned non-success status: path=%s, server_id=%s, status=%d, attempts=%d",
         path,
         serverId,
         statusCode,
-        attempts);
+        attempts));
   }
 
   private boolean shouldRetry(int statusCode) {
@@ -362,7 +364,7 @@ public class ApiClient implements AutoCloseable {
   }
 
   private URI resolveUri(String path) {
-    String apiUrl = ForgeConfig.apiUrl();
+    String apiUrl = apiConfig.apiUrl();
     String separator = apiUrl.endsWith("/") ? "" : "/";
     String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
     try {
