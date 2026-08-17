@@ -1,0 +1,42 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+run-data
+
+# Gradle / local publish (see build.gradle maven { url file(...) })
+mcmodsrepo
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo
+
+# JVM crash / hsperf (debug / CI artifacts)
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+
+# Files from Forge MDK
+forge*changelog.txt
