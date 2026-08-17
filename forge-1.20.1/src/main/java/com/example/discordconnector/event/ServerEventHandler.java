@@ -1,23 +1,24 @@
 package com.example.discordconnector.event;
 
-import com.example.discordconnector.DiscordConnectorForge;
-import com.example.discordconnector.config.ForgeConfig;
+import com.example.discordconnector.service.ServerLifecycleService;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class ServerEventHandler {
+  private final ServerLifecycleService serverLifecycleService;
+
+  public ServerEventHandler(ServerLifecycleService serverLifecycleService) {
+    this.serverLifecycleService = serverLifecycleService;
+  }
+
   @SubscribeEvent
   public void onServerStarted(ServerStartedEvent event) {
-    DiscordConnectorForge.LOGGER.info(
-        "Server started: server_id={}, api_url={}, api_key_configured={}",
-        ForgeConfig.serverId(),
-        ForgeConfig.apiUrl(),
-        ForgeConfig.hasApiKey());
+    serverLifecycleService.onServerStarted();
   }
 
   @SubscribeEvent
   public void onServerStopping(ServerStoppingEvent event) {
-    DiscordConnectorForge.LOGGER.info("Server stopping: server_id={}", ForgeConfig.serverId());
+    serverLifecycleService.onServerStopping();
   }
 }

@@ -3,6 +3,8 @@ package com.example.discordconnector;
 import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.event.PlayerEventHandler;
 import com.example.discordconnector.event.ServerEventHandler;
+import com.example.discordconnector.service.CommunityService;
+import com.example.discordconnector.service.ServerLifecycleService;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -21,8 +23,8 @@ public class DiscordConnectorForge {
     ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ForgeConfig.SPEC);
 
     MinecraftForge.EVENT_BUS.register(this);
-    MinecraftForge.EVENT_BUS.register(new PlayerEventHandler());
-    MinecraftForge.EVENT_BUS.register(new ServerEventHandler());
+    MinecraftForge.EVENT_BUS.register(new PlayerEventHandler(new CommunityService()));
+    MinecraftForge.EVENT_BUS.register(new ServerEventHandler(new ServerLifecycleService()));
   }
 
   @SubscribeEvent
