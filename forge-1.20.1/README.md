@@ -1,112 +1,263 @@
-# Forge 1.20.1 discord-connector
+# discord-connector Forge 1.20.1
 
-Minecraft **1.20.1** + **Forge 47.4.10** の最小MOD（`/hello` コマンド）です。新規MODの出発点として使えます。
+Minecraft サーバーのイベントを Discord Connector API へ送信する Forge サーバーサイド Mod です。
 
-公式のセットアップ手順は同梱の [README.txt](README.txt) および [Forge ドキュメント（Getting Started）](https://docs.minecraftforge.net/en/1.20.1/gettingstarted/) を参照してください。
+対応環境:
 
----
+- Minecraft: `1.20.1`
+- Forge: `47.4.10`
+- Java: `17`
+- Mod ID: `discord_connector`
+- 生成 jar: `build/libs/discord-connector-forge-1.20.1-0.1.0.jar`
 
-## 開発時に触る場所（早見表）
+## 機能
 
-| 目的 | 主に編集するファイル |
-|------|----------------------|
-| MOD ID・表示名・バージョン・作者・説明 | `gradle.properties`（下記プロパティ名） |
-| MOD IDをコードと一致させる | `src/main/java/com/example/discordconnector/DiscordConnectorForge.java` の `MODID` 定数 |
-| ゲーム内の文言（翻訳） | `src/main/resources/assets/<mod_id>/lang/en_us.json` / `ja_jp.json` |
-| MODメタ情報（依存関係など） | `src/main/resources/META-INF/mods.toml` |
-| データパック説明（リソースパック相当の説明文） | `src/main/resources/pack.mcmeta`（ビルド時に `${mod_id}` が展開されます） |
-| Minecraft / Forge バージョン | `gradle.properties` の `minecraft_version` / `forge_version` など |
-| ビルド・実行タスク | `build.gradle` |
-| VS Code のデバッグ起動 | `.vscode/launch.json`（MOD ID変更時は要更新。下記参照） |
+- サーバー起動通知
+- サーバー停止通知
+- プレイヤー参加通知
+- プレイヤー退出通知
+- 5分ごとの Heartbeat
+- Discord 連携コード発行コマンド `/discord link`
+- Bearer 認証付き HTTPS API 通信
+- 専用スレッド `discord-connector-api` による非同期 API 通信
+- 通信エラー、`429`、`5xx` に対する回数制限付き retry
 
----
+## プロジェクト構成
 
-## `gradle.properties` のテンプレート用プロパティ名
-
-ビルド時に `mods.toml` や `pack.mcmeta` へ展開される値です。**ここを変えたら**、コード側の `MODID` とリソースパスも揃えてください。
-
-| プロパティ名 | 意味 |
-|--------------|------|
-| `mod_id` | MOD ID（小文字英数字と `_`、先頭は英字） |
-| `mod_name` | MOD一覧に出る表示名 |
-| `mod_version` | MODのバージョン文字列 |
-| `mod_license` | ライセンス表記（例: `MIT`） |
-| `mod_group_id` | Maven 用グループID。Java のパッケージ（例: `com.example.mymod`）と揃えるのが一般的 |
-| `mod_authors` | 作者表示用文字列 |
-| `mod_description` | MOD説明（`\n` で改行可） |
-| `minecraft_version` / `forge_version` | 使用する MC / Forge の版 |
-| `minecraft_version_range` / `forge_version_range` / `loader_version_range` | 互換性のバージョン範囲 |
-| `mapping_channel` / `mapping_version` | 開発用マッピング（既定は `official`） |
-
----
-
-## MOD ID を変えたときに必ず揃えるもの
-
-`mod_id` を例として `mymod` に変える場合のチェックリストです。
-
-1. **`gradle.properties`** … `mod_id=mymod` および必要なら `mod_group_id` を変更。
-2. **`DiscordConnectorForge.java`** … `public static final String MODID = "mymod";` と `@Mod` の引数が一致していること。
-3. **パッケージ・クラス名**（任意）… グループIDに合わせて `com.example.mymod` のようにリネームするなら、ディレクトリ構造と `package` 宣言も合わせる。
-4. **リソースパス** … `src/main/resources/assets/discord_connector/` を必要な MOD ID の名前空間にリネーム（MOD IDと名前空間を一致させるのが一般的）。
-5. **`mods.toml`** … ファイル内の **`[[dependencies.discord_connector]]` を `[[dependencies.mymod]]` に2箇所とも変更**（テンプレートでは TOML の制約のため mod_id と連動したプレースホルダにしていません）。
-6. **`.vscode/launch.json`** … `MOD_CLASSES` の先頭、`--mod` 引数、`forge.enabledGameTestNamespaces` などに **`discord_connector` がハードコードされている箇所**を新しい MOD ID に置き換え。
-   または Gradle で実行構成を再生成し直す方法（`genVSCodeRuns` 等、環境に応じて）を取ると安全です。
-
----
-
-## ソースコードの置き場所
-
-| ファイル | 役割 |
-|----------|------|
-| `src/main/java/com/example/discordconnector/DiscordConnectorForge.java` | `@Mod` エントリ。イベント登録の起点。 |
-| `src/main/java/com/example/discordconnector/DiscordCommand.java` | `/discord` コマンドの実装例。 |
-
-新しい機能はこのパッケージ配下にクラスを追加し、`DiscordConnectorForge` のコンストラクタやイベント購読で登録します。
-
----
-
-## リソース
-
-| パス | 役割 |
-|------|------|
-| `src/main/resources/META-INF/mods.toml` | FML が読む MOD 定義。多くの項目は `gradle.properties` の `${...}` で埋まります。 |
-| `src/main/resources/assets/<mod_id>/lang/*.json` | 言語キーと翻訳。 |
-| `src/main/resources/pack.mcmeta` | リソースパック形式のメタ。`description` に `${mod_id}` が使われます。 |
-
-データ生成を使う場合は `build.gradle` の `data` ランと `src/generated/resources/` が関わります（未使用なら無視して構いません）。
-
----
-
-## よく使うコマンド
-
-プロジェクトルート（この `README.md` があるフォルダ）で実行します。
-
-```powershell
-# IDE 用の実行構成生成（IntelliJ の例）
-.\gradlew.bat genIntellijRuns
-
-# クライアント起動（Gradle から）
-.\gradlew.bat runClient
-
-# コンパイル確認
-.\gradlew.bat compileJava
-
-# 配布用 JAR（build\libs\）
-.\gradlew.bat build
+```text
+forge-1.20.1/
+  common/
+    src/main/java/com/example/discordconnector/
+      api/
+      logging/
+      model/
+      service/
+      util/
+  src/main/java/com/example/discordconnector/
+    config/
+    event/
+    logging/
+    service/
+    DiscordCommand.java
+    DiscordConnectorForge.java
 ```
 
-**推奨:** MOD 本体の開発は **JDK 17** を使ってください（1.18+ Forge の想定）。`java -version` で確認できます。
+`common` には、将来 NeoForge など別 loader でも使える Java のみの処理を置いています。Forge や Minecraft のクラスには依存させません。
 
----
+Forge 固有の config 登録、イベントハンドラ、コマンド登録、Minecraft クラスから common DTO への変換は `src/main/java` 側に置きます。
 
-## GitHub に上げるときの目安
+## 設定
 
-コミットに含めてよいもの: `src/`、`build.gradle`、`settings.gradle`、`gradle.properties`、`gradlew*`、`gradle/wrapper/`、`.gitignore`、任意で `.vscode/`。
+この Mod は Forge の SERVER config を使います。通常のサーバー実行時は、ワールド配下の server config に生成されるファイルを編集します。
 
-含めないことが多いもの: `build/`、`run/`、`run-data/`、`bin/`、`.gradle/`（ルートの `.gitignore` で除外されているか確認）。
+例:
 
----
+```text
+run/saves/<world>/serverconfig/discord_connector-server.toml
+```
 
-## ライセンス
+設定例:
 
-`gradle.properties` の `mod_license` とリポジトリの `LICENSE` を用途に合わせて変更してください。
+```toml
+[discord_connector]
+server_id = "oceanblock2"
+api_url = "https://minecraft-discord-connector-api.limeivy1221.workers.dev"
+api_key = "mc_xxxxxxxxxxxxxxxxx"
+```
+
+注意:
+
+- `api_url` には必ず `https://` を含めてください。
+- `api_key` は秘密情報です。Git にコミットしないでください。
+- `run/` は `.gitignore` で除外されています。
+
+## API 通信
+
+すべての API 通信には以下のヘッダーを付けます。
+
+```http
+Content-Type: application/json
+Authorization: Bearer <api_key>
+```
+
+### サーバー起動
+
+```http
+POST /v1/minecraft/events/server-start
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "occurredAt": 1786959377
+}
+```
+
+### サーバー停止
+
+```http
+POST /v1/minecraft/events/server-stop
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "occurredAt": 1786959472
+}
+```
+
+### プレイヤー参加
+
+```http
+POST /v1/minecraft/events/join
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
+  "minecraftName": "Lime_Ivy",
+  "occurredAt": 1786959466
+}
+```
+
+### プレイヤー退出
+
+```http
+POST /v1/minecraft/events/leave
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
+  "occurredAt": 1786959472
+}
+```
+
+### Heartbeat
+
+サーバー起動中、5分ごとに送信します。
+
+```http
+POST /v1/minecraft/heartbeat
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "players": [
+    "a6c3a42e-66ff-4137-a862-dcab26221947"
+  ],
+  "occurredAt": 1786959677
+}
+```
+
+### Discord 連携コード
+
+Minecraft 内で以下を実行します。
+
+```text
+/discord link
+```
+
+Mod は以下を送信します。
+
+```http
+POST /v1/minecraft/link-code
+```
+
+```json
+{
+  "serverId": "oceanblock2",
+  "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
+  "minecraftName": "Lime_Ivy"
+}
+```
+
+期待する API レスポンス:
+
+```json
+{
+  "success": true,
+  "data": {
+    "code": "123456",
+    "expiresAt": 1786906200
+  }
+}
+```
+
+プレイヤーには、Discord 側で以下を実行するよう案内します。
+
+```text
+/link code:123456
+```
+
+## ビルド
+
+この README があるディレクトリで実行します。
+
+```powershell
+.\gradlew.bat clean build
+```
+
+成功時:
+
+```text
+BUILD SUCCESSFUL
+```
+
+jar は以下に生成されます。
+
+```text
+build/libs/discord-connector-forge-1.20.1-0.1.0.jar
+```
+
+Forge 用 jar には、`common` の class も同梱されます。
+
+## 開発用サーバー起動
+
+```powershell
+.\gradlew.bat runServer
+```
+
+EULA で停止した場合は、以下を編集します。
+
+```text
+run/eula.txt
+```
+
+次のように設定してください。
+
+```text
+eula=true
+```
+
+## 動作確認チェックリスト
+
+Forge 1.20.1 サーバーに jar を配置したあと、以下を確認します。
+
+- サーバー起動 API が `2xx` を返す
+- プレイヤー参加 API が `2xx` を返す
+- プレイヤー退出 API が `2xx` を返す
+- Heartbeat API が `2xx` を返す
+- サーバー停止 API が `2xx` を返す
+- `/discord link` で6桁コードが表示される
+- API 完了ログのスレッド名が `discord-connector-api` になっている
+
+成功ログ例:
+
+```text
+[discord-connector-api/INFO] [co.ex.di.DiscordConnectorForge/]: API request completed: path=/v1/minecraft/events/join, server_id=oceanblock2, status=200, attempts=1
+```
+
+## Git 管理しないもの
+
+以下はコミットしないでください。
+
+- `run/`
+- `build/`
+- `.gradle/`
+- 実際の `api_key`
+
+これらは `.gitignore` で除外されています。
