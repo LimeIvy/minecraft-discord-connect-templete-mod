@@ -1,5 +1,6 @@
 package com.example.discordconnector.util;
 
+import com.example.discordconnector.model.HeartbeatRequest;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.ServerEventRequest;
@@ -10,23 +11,33 @@ public final class JsonUtil {
 
   public static String toJson(JoinEventRequest request) {
     return "{"
-        + field("uuid", request.uuid().toString()) + ","
-        + field("name", request.name()) + ","
-        + field("serverId", request.serverId())
+        + field("serverId", request.serverId()) + ","
+        + field("minecraftUuid", request.minecraftUuid().toString()) + ","
+        + field("minecraftName", request.minecraftName()) + ","
+        + numberField("occurredAt", request.occurredAt())
         + "}";
   }
 
   public static String toJson(LeaveEventRequest request) {
     return "{"
-        + field("uuid", request.uuid().toString()) + ","
-        + field("name", request.name()) + ","
-        + field("serverId", request.serverId())
+        + field("serverId", request.serverId()) + ","
+        + field("minecraftUuid", request.minecraftUuid().toString()) + ","
+        + numberField("occurredAt", request.occurredAt())
         + "}";
   }
 
   public static String toJson(ServerEventRequest request) {
     return "{"
-        + field("serverId", request.serverId())
+        + field("serverId", request.serverId()) + ","
+        + numberField("occurredAt", request.occurredAt())
+        + "}";
+  }
+
+  public static String toJson(HeartbeatRequest request) {
+    return "{"
+        + field("serverId", request.serverId()) + ","
+        + "\"players\":" + stringArray(request.players()) + ","
+        + numberField("occurredAt", request.occurredAt())
         + "}";
   }
 
@@ -34,8 +45,26 @@ public final class JsonUtil {
     return quote(name) + ":" + quote(value);
   }
 
+  private static String numberField(String name, long value) {
+    return quote(name) + ":" + value;
+  }
+
   private static String quote(String value) {
     return "\"" + escape(value) + "\"";
+  }
+
+  private static String stringArray(Iterable<String> values) {
+    StringBuilder builder = new StringBuilder("[");
+    boolean first = true;
+    for (String value : values) {
+      if (!first) {
+        builder.append(",");
+      }
+      builder.append(quote(value));
+      first = false;
+    }
+    builder.append("]");
+    return builder.toString();
   }
 
   private static String escape(String value) {

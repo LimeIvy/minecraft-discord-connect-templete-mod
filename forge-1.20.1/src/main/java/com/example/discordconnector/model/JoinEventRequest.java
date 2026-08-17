@@ -3,11 +3,16 @@ package com.example.discordconnector.model;
 import java.util.UUID;
 
 public record JoinEventRequest(
-    UUID uuid,
-    String name,
-    String serverId
+    String serverId,
+    UUID minecraftUuid,
+    String minecraftName,
+    long occurredAt
 ) {
-  public static JoinEventRequest from(PlayerInfo playerInfo) {
-    return new JoinEventRequest(playerInfo.uuid(), playerInfo.name(), playerInfo.serverId());
+  public static JoinEventRequest from(PlayerInfo playerInfo, long occurredAt) {
+    return new JoinEventRequest(
+        playerInfo.serverId(),
+        playerInfo.uuid(),
+        playerInfo.name(),
+        occurredAt);
   }
 }

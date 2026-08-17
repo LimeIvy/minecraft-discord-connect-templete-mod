@@ -1,7 +1,10 @@
 package com.example.discordconnector.model;
 
-public record ServerEventRequest(
+import java.util.List;
+
+public record HeartbeatRequest(
     String serverId,
+    List<String> players,
     long occurredAt
 ) {
 }

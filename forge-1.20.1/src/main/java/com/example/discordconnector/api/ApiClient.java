@@ -2,6 +2,7 @@ package com.example.discordconnector.api;
 
 import com.example.discordconnector.DiscordConnectorForge;
 import com.example.discordconnector.config.ForgeConfig;
+import com.example.discordconnector.model.HeartbeatRequest;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.ServerEventRequest;
@@ -42,6 +43,13 @@ public class ApiClient {
   public void sendServerStop(ServerEventRequest request) {
     sendPost(
         "/v1/minecraft/events/server-stop",
+        request.serverId(),
+        JsonUtil.toJson(request));
+  }
+
+  public void sendHeartbeat(HeartbeatRequest request) {
+    sendPost(
+        "/v1/minecraft/heartbeat",
         request.serverId(),
         JsonUtil.toJson(request));
   }

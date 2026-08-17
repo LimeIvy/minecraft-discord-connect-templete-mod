@@ -5,6 +5,7 @@ import com.example.discordconnector.api.ApiClient;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.PlayerInfo;
+import java.time.Instant;
 
 public class CommunityService {
   private final ApiClient apiClient;
@@ -19,7 +20,7 @@ public class CommunityService {
         playerInfo.serverId(),
         playerInfo.uuid(),
         playerInfo.name());
-    apiClient.sendPlayerJoin(JoinEventRequest.from(playerInfo));
+    apiClient.sendPlayerJoin(JoinEventRequest.from(playerInfo, occurredAt()));
   }
 
   public void onPlayerLeave(PlayerInfo playerInfo) {
@@ -28,6 +29,10 @@ public class CommunityService {
         playerInfo.serverId(),
         playerInfo.uuid(),
         playerInfo.name());
-    apiClient.sendPlayerLeave(LeaveEventRequest.from(playerInfo));
+    apiClient.sendPlayerLeave(LeaveEventRequest.from(playerInfo, occurredAt()));
+  }
+
+  private long occurredAt() {
+    return Instant.now().getEpochSecond();
   }
 }

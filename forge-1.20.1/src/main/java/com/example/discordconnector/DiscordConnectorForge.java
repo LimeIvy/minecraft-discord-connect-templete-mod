@@ -2,9 +2,11 @@ package com.example.discordconnector;
 
 import com.example.discordconnector.api.ApiClient;
 import com.example.discordconnector.config.ForgeConfig;
+import com.example.discordconnector.event.HeartbeatEventHandler;
 import com.example.discordconnector.event.PlayerEventHandler;
 import com.example.discordconnector.event.ServerEventHandler;
 import com.example.discordconnector.service.CommunityService;
+import com.example.discordconnector.service.HeartbeatService;
 import com.example.discordconnector.service.ServerLifecycleService;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
@@ -24,10 +26,13 @@ public class DiscordConnectorForge {
     ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ForgeConfig.SPEC);
 
     ApiClient apiClient = new ApiClient();
+    HeartbeatService heartbeatService = new HeartbeatService(apiClient);
 
     MinecraftForge.EVENT_BUS.register(this);
     MinecraftForge.EVENT_BUS.register(new PlayerEventHandler(new CommunityService(apiClient)));
-    MinecraftForge.EVENT_BUS.register(new ServerEventHandler(new ServerLifecycleService(apiClient)));
+    MinecraftForge.EVENT_BUS.register(new ServerEventHandler(
+        new ServerLifecycleService(apiClient, heartbeatService)));
+    MinecraftForge.EVENT_BUS.register(new HeartbeatEventHandler(heartbeatService));
   }
 
   @SubscribeEvent
