@@ -13,16 +13,28 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
-public class ApiClient {
+public class ApiClient implements AutoCloseable {
+  private static final int MAX_ATTEMPTS = 3;
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
+  private final ExecutorService executorService;
   private final HttpClient httpClient;
 
   public ApiClient() {
+    this.executorService = Executors.newSingleThreadExecutor(new ApiThreadFactory());
     this.httpClient = HttpClient.newBuilder()
         .connectTimeout(REQUEST_TIMEOUT)
+        .executor(executorService)
         .build();
+  }
+
+  @Override
+  public void close() {
+    executorService.shutdown();
   }
 
   public void sendPlayerJoin(JoinEventRequest request) {
@@ -89,35 +101,88 @@ public class ApiClient {
         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
         .build();
 
-    httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
-        .whenComplete((response, throwable) -> {
-          if (throwable != null) {
-            DiscordConnectorForge.LOGGER.warn(
-                "API request failed: path={}, server_id={}, error={}",
-                path,
-                serverId,
-                throwable.toString());
-            return;
-          }
-          logResponse(path, serverId, response.statusCode());
-        });
+    sendWithRetry(request, path, serverId, 1);
   }
 
-  private void logResponse(String path, String serverId, int statusCode) {
-    if (statusCode >= 200 && statusCode < 300) {
-      DiscordConnectorForge.LOGGER.info(
-          "API request completed: path={}, server_id={}, status={}",
+  private void sendWithRetry(HttpRequest request, String path, String serverId, int attempt) {
+    httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+        .whenCompleteAsync((response, throwable) -> {
+          if (throwable != null) {
+            handleFailedAttempt(request, path, serverId, attempt, throwable);
+            return;
+          }
+          handleResponse(request, path, serverId, attempt, response.statusCode());
+        }, executorService);
+  }
+
+  private void handleFailedAttempt(
+      HttpRequest request,
+      String path,
+      String serverId,
+      int attempt,
+      Throwable throwable) {
+    if (attempt < MAX_ATTEMPTS) {
+      DiscordConnectorForge.LOGGER.warn(
+          "API request failed; retrying: path={}, server_id={}, attempt={}, max_attempts={}, error={}",
           path,
           serverId,
-          statusCode);
+          attempt,
+          MAX_ATTEMPTS,
+          throwable.toString());
+      sendWithRetry(request, path, serverId, attempt + 1);
       return;
     }
 
     DiscordConnectorForge.LOGGER.warn(
-        "API request returned non-success status: path={}, server_id={}, status={}",
+        "API request failed: path={}, server_id={}, attempts={}, error={}",
         path,
         serverId,
-        statusCode);
+        attempt,
+        throwable.toString());
+  }
+
+  private void handleResponse(
+      HttpRequest request,
+      String path,
+      String serverId,
+      int attempt,
+      int statusCode) {
+    if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
+      DiscordConnectorForge.LOGGER.warn(
+          "API request returned retryable status; retrying: path={}, server_id={}, status={}, attempt={}, max_attempts={}",
+          path,
+          serverId,
+          statusCode,
+          attempt,
+          MAX_ATTEMPTS);
+      sendWithRetry(request, path, serverId, attempt + 1);
+      return;
+    }
+
+    logResponse(path, serverId, statusCode, attempt);
+  }
+
+  private void logResponse(String path, String serverId, int statusCode, int attempts) {
+    if (statusCode >= 200 && statusCode < 300) {
+      DiscordConnectorForge.LOGGER.info(
+          "API request completed: path={}, server_id={}, status={}, attempts={}",
+          path,
+          serverId,
+          statusCode,
+          attempts);
+      return;
+    }
+
+    DiscordConnectorForge.LOGGER.warn(
+        "API request returned non-success status: path={}, server_id={}, status={}, attempts={}",
+        path,
+        serverId,
+        statusCode,
+        attempts);
+  }
+
+  private boolean shouldRetry(int statusCode) {
+    return statusCode == 429 || statusCode >= 500;
   }
 
   private URI resolveUri(String path) {
@@ -132,6 +197,15 @@ public class ApiClient {
       return uri;
     } catch (URISyntaxException exception) {
       return null;
+    }
+  }
+
+  private static final class ApiThreadFactory implements ThreadFactory {
+    @Override
+    public Thread newThread(Runnable runnable) {
+      Thread thread = new Thread(runnable, "discord-connector-api");
+      thread.setDaemon(true);
+      return thread;
     }
   }
 }
