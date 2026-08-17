@@ -1,5 +1,6 @@
 package com.example.discordconnector;
 
+import com.example.discordconnector.api.ApiClient;
 import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.event.PlayerEventHandler;
 import com.example.discordconnector.event.ServerEventHandler;
@@ -22,9 +23,11 @@ public class DiscordConnectorForge {
   public DiscordConnectorForge() {
     ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ForgeConfig.SPEC);
 
+    ApiClient apiClient = new ApiClient();
+
     MinecraftForge.EVENT_BUS.register(this);
-    MinecraftForge.EVENT_BUS.register(new PlayerEventHandler(new CommunityService()));
-    MinecraftForge.EVENT_BUS.register(new ServerEventHandler(new ServerLifecycleService()));
+    MinecraftForge.EVENT_BUS.register(new PlayerEventHandler(new CommunityService(apiClient)));
+    MinecraftForge.EVENT_BUS.register(new ServerEventHandler(new ServerLifecycleService(apiClient)));
   }
 
   @SubscribeEvent
