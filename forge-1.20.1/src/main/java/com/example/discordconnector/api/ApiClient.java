@@ -55,7 +55,7 @@ public class ApiClient {
   }
 
   private void sendPost(String path, String serverId, String requestBody) {
-    DiscordConnectorForge.LOGGER.info(
+    DiscordConnectorForge.LOGGER.debug(
         "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
         path,
         serverId,
