@@ -7,6 +7,7 @@ import com.example.discordconnector.model.LeaveEventRequest;
 import com.example.discordconnector.model.ServerEventRequest;
 import com.example.discordconnector.util.JsonUtil;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -62,8 +63,18 @@ public class ApiClient {
       return;
     }
 
+    URI uri = resolveUri(path);
+    if (uri == null) {
+      DiscordConnectorForge.LOGGER.warn(
+          "Skipped API request because api_url is invalid: path={}, server_id={}, api_url={}",
+          path,
+          serverId,
+          ForgeConfig.apiUrl());
+      return;
+    }
+
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(resolveUri(path))
+        .uri(uri)
         .timeout(REQUEST_TIMEOUT)
         .header("Content-Type", "application/json")
         .header("Authorization", "Bearer " + ForgeConfig.apiKey())
@@ -80,18 +91,39 @@ public class ApiClient {
                 throwable.toString());
             return;
           }
-          DiscordConnectorForge.LOGGER.info(
-              "API request completed: path={}, server_id={}, status={}",
-              path,
-              serverId,
-              response.statusCode());
+          logResponse(path, serverId, response.statusCode());
         });
+  }
+
+  private void logResponse(String path, String serverId, int statusCode) {
+    if (statusCode >= 200 && statusCode < 300) {
+      DiscordConnectorForge.LOGGER.info(
+          "API request completed: path={}, server_id={}, status={}",
+          path,
+          serverId,
+          statusCode);
+      return;
+    }
+
+    DiscordConnectorForge.LOGGER.warn(
+        "API request returned non-success status: path={}, server_id={}, status={}",
+        path,
+        serverId,
+        statusCode);
   }
 
   private URI resolveUri(String path) {
     String apiUrl = ForgeConfig.apiUrl();
     String separator = apiUrl.endsWith("/") ? "" : "/";
     String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
-    return URI.create(apiUrl + separator + normalizedPath);
+    try {
+      URI uri = new URI(apiUrl + separator + normalizedPath);
+      if (!"https".equalsIgnoreCase(uri.getScheme())) {
+        return null;
+      }
+      return uri;
+    } catch (URISyntaxException exception) {
+      return null;
+    }
   }
 }
