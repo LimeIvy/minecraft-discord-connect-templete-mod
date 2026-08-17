@@ -5,6 +5,8 @@ import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.model.HeartbeatRequest;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
+import com.example.discordconnector.model.LinkCodeRequest;
+import com.example.discordconnector.model.LinkCodeResponse;
 import com.example.discordconnector.model.ServerEventRequest;
 import com.example.discordconnector.util.JsonUtil;
 import java.net.URI;
@@ -13,6 +15,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -66,6 +70,14 @@ public class ApiClient implements AutoCloseable {
         JsonUtil.toJson(request));
   }
 
+  public CompletableFuture<LinkCodeResponse> requestLinkCode(LinkCodeRequest request) {
+    return sendPostForString(
+        "/v1/minecraft/link-code",
+        request.serverId(),
+        JsonUtil.toJson(request))
+        .thenApply(this::parseLinkCodeResponse);
+  }
+
   private void sendPost(String path, String serverId, String requestBody) {
     DiscordConnectorForge.LOGGER.debug(
         "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
@@ -104,6 +116,39 @@ public class ApiClient implements AutoCloseable {
     sendWithRetry(request, path, serverId, 1);
   }
 
+  private CompletableFuture<String> sendPostForString(String path, String serverId, String requestBody) {
+    DiscordConnectorForge.LOGGER.debug(
+        "Prepared API request: method=POST, path={}, server_id={}, api_url={}, api_key_configured={}, body={}",
+        path,
+        serverId,
+        ForgeConfig.apiUrl(),
+        ForgeConfig.hasApiKey(),
+        requestBody);
+
+    if (!ForgeConfig.hasApiKey()) {
+      return CompletableFuture.failedFuture(
+          new IllegalStateException("api_key is not configured"));
+    }
+
+    URI uri = resolveUri(path);
+    if (uri == null) {
+      return CompletableFuture.failedFuture(
+          new IllegalStateException("api_url is invalid: " + ForgeConfig.apiUrl()));
+    }
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(uri)
+        .timeout(REQUEST_TIMEOUT)
+        .header("Content-Type", "application/json")
+        .header("Authorization", "Bearer " + ForgeConfig.apiKey())
+        .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+        .build();
+
+    CompletableFuture<String> result = new CompletableFuture<>();
+    sendWithRetryForString(request, path, serverId, 1, result);
+    return result;
+  }
+
   private void sendWithRetry(HttpRequest request, String path, String serverId, int attempt) {
     httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
         .whenCompleteAsync((response, throwable) -> {
@@ -112,6 +157,59 @@ public class ApiClient implements AutoCloseable {
             return;
           }
           handleResponse(request, path, serverId, attempt, response.statusCode());
+        }, executorService);
+  }
+
+  private void sendWithRetryForString(
+      HttpRequest request,
+      String path,
+      String serverId,
+      int attempt,
+      CompletableFuture<String> result) {
+    httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        .whenCompleteAsync((response, throwable) -> {
+          if (throwable != null) {
+            if (attempt < MAX_ATTEMPTS) {
+              DiscordConnectorForge.LOGGER.warn(
+                  "API request failed; retrying: path={}, server_id={}, attempt={}, max_attempts={}, error={}",
+                  path,
+                  serverId,
+                  attempt,
+                  MAX_ATTEMPTS,
+                  throwable.toString());
+              sendWithRetryForString(request, path, serverId, attempt + 1, result);
+              return;
+            }
+            result.completeExceptionally(throwable);
+            return;
+          }
+
+          int statusCode = response.statusCode();
+          if (shouldRetry(statusCode) && attempt < MAX_ATTEMPTS) {
+            DiscordConnectorForge.LOGGER.warn(
+                "API request returned retryable status; retrying: path={}, server_id={}, status={}, attempt={}, max_attempts={}",
+                path,
+                serverId,
+                statusCode,
+                attempt,
+                MAX_ATTEMPTS);
+            sendWithRetryForString(request, path, serverId, attempt + 1, result);
+            return;
+          }
+
+          if (statusCode < 200 || statusCode >= 300) {
+            result.completeExceptionally(new IllegalStateException(
+                "API request returned status " + statusCode));
+            return;
+          }
+
+          DiscordConnectorForge.LOGGER.info(
+              "API request completed: path={}, server_id={}, status={}, attempts={}",
+              path,
+              serverId,
+              statusCode,
+              attempt);
+          result.complete(response.body());
         }, executorService);
   }
 
@@ -183,6 +281,84 @@ public class ApiClient implements AutoCloseable {
 
   private boolean shouldRetry(int statusCode) {
     return statusCode == 429 || statusCode >= 500;
+  }
+
+  private LinkCodeResponse parseLinkCodeResponse(String responseBody) {
+    String code = findStringValue(responseBody, "code")
+        .orElseThrow(() -> new IllegalStateException("link code was not found in API response"));
+    long expiresAt = findLongValue(responseBody, "expiresAt")
+        .orElseThrow(() -> new IllegalStateException("link code expiry was not found in API response"));
+    return new LinkCodeResponse(code, expiresAt);
+  }
+
+  private Optional<String> findStringValue(String json, String fieldName) {
+    String pattern = "\"" + fieldName + "\"";
+    int fieldIndex = json.indexOf(pattern);
+    if (fieldIndex < 0) {
+      return Optional.empty();
+    }
+
+    int colonIndex = json.indexOf(':', fieldIndex + pattern.length());
+    if (colonIndex < 0) {
+      return Optional.empty();
+    }
+
+    int valueStart = json.indexOf('"', colonIndex + 1);
+    if (valueStart < 0) {
+      return Optional.empty();
+    }
+
+    StringBuilder value = new StringBuilder();
+    boolean escaped = false;
+    for (int index = valueStart + 1; index < json.length(); index++) {
+      char character = json.charAt(index);
+      if (escaped) {
+        value.append(character);
+        escaped = false;
+        continue;
+      }
+      if (character == '\\') {
+        escaped = true;
+        continue;
+      }
+      if (character == '"') {
+        return Optional.of(value.toString());
+      }
+      value.append(character);
+    }
+    return Optional.empty();
+  }
+
+  private Optional<Integer> findIntValue(String json, String fieldName) {
+    return findLongValue(json, fieldName).map(Long::intValue);
+  }
+
+  private Optional<Long> findLongValue(String json, String fieldName) {
+    String pattern = "\"" + fieldName + "\"";
+    int fieldIndex = json.indexOf(pattern);
+    if (fieldIndex < 0) {
+      return Optional.empty();
+    }
+
+    int colonIndex = json.indexOf(':', fieldIndex + pattern.length());
+    if (colonIndex < 0) {
+      return Optional.empty();
+    }
+
+    int valueStart = colonIndex + 1;
+    while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart))) {
+      valueStart++;
+    }
+
+    int valueEnd = valueStart;
+    while (valueEnd < json.length() && Character.isDigit(json.charAt(valueEnd))) {
+      valueEnd++;
+    }
+
+    if (valueEnd == valueStart) {
+      return Optional.empty();
+    }
+    return Optional.of(Long.parseLong(json.substring(valueStart, valueEnd)));
   }
 
   private URI resolveUri(String path) {

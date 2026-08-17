@@ -7,6 +7,7 @@ import com.example.discordconnector.event.PlayerEventHandler;
 import com.example.discordconnector.event.ServerEventHandler;
 import com.example.discordconnector.service.CommunityService;
 import com.example.discordconnector.service.HeartbeatService;
+import com.example.discordconnector.service.LinkService;
 import com.example.discordconnector.service.ServerLifecycleService;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
@@ -22,11 +23,14 @@ public class DiscordConnectorForge {
   public static final String MODID = "discord_connector";
   public static final Logger LOGGER = LogUtils.getLogger();
 
+  private final LinkService linkService;
+
   public DiscordConnectorForge() {
     ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ForgeConfig.SPEC);
 
     ApiClient apiClient = new ApiClient();
     HeartbeatService heartbeatService = new HeartbeatService(apiClient);
+    linkService = new LinkService(apiClient);
 
     MinecraftForge.EVENT_BUS.register(this);
     MinecraftForge.EVENT_BUS.register(new PlayerEventHandler(new CommunityService(apiClient)));
@@ -37,6 +41,6 @@ public class DiscordConnectorForge {
 
   @SubscribeEvent
   public void onCommandsRegister(RegisterCommandsEvent event) {
-    DiscordCommand.register(event.getDispatcher());
+    DiscordCommand.register(event.getDispatcher(), linkService);
   }
 }

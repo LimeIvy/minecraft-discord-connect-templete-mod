@@ -3,6 +3,7 @@ package com.example.discordconnector.util;
 import com.example.discordconnector.model.HeartbeatRequest;
 import com.example.discordconnector.model.JoinEventRequest;
 import com.example.discordconnector.model.LeaveEventRequest;
+import com.example.discordconnector.model.LinkCodeRequest;
 import com.example.discordconnector.model.ServerEventRequest;
 
 public final class JsonUtil {
@@ -38,6 +39,14 @@ public final class JsonUtil {
         + field("serverId", request.serverId()) + ","
         + "\"players\":" + stringArray(request.players()) + ","
         + numberField("occurredAt", request.occurredAt())
+        + "}";
+  }
+
+  public static String toJson(LinkCodeRequest request) {
+    return "{"
+        + field("serverId", request.serverId()) + ","
+        + field("minecraftUuid", request.minecraftUuid().toString()) + ","
+        + field("minecraftName", request.minecraftName())
         + "}";
   }
 
