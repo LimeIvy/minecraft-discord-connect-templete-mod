@@ -9,7 +9,6 @@ public class DiscordCommand {
   public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
     dispatcher.register(Commands.literal("discord")
         .executes(context -> {
-          // チャットにメッセージを表示
           context.getSource().sendSuccess(() -> Component.literal("discord-connector"), false);
           return 1;
         }));
