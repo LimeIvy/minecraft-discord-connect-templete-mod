@@ -90,6 +90,14 @@ public class ApiClient implements AutoCloseable {
         apiConfig.hasApiKey(),
         requestBody));
 
+    if (!apiConfig.hasApiUrl()) {
+      logger.warn(String.format(
+          "Skipped API request because api_url is not configured: path=%s, server_id=%s",
+          path,
+          serverId));
+      return;
+    }
+
     if (!apiConfig.hasApiKey()) {
       logger.warn(String.format(
           "Skipped API request because api_key is not configured: path=%s, server_id=%s",
@@ -127,6 +135,11 @@ public class ApiClient implements AutoCloseable {
         apiConfig.apiUrl(),
         apiConfig.hasApiKey(),
         requestBody));
+
+    if (!apiConfig.hasApiUrl()) {
+      return CompletableFuture.failedFuture(
+          new IllegalStateException("api_url is not configured"));
+    }
 
     if (!apiConfig.hasApiKey()) {
       return CompletableFuture.failedFuture(

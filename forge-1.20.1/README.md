@@ -1,86 +1,83 @@
-# discord-connector Forge 1.20.1
+# discord-connect-template
 
-Minecraft サーバーのイベントを Discord Connector API へ送信する Forge サーバーサイド Mod です。
+`discord-connect-template` is a Minecraft Forge 1.20.1 mod template for connecting Minecraft server events to a customizable Discord integration API.
 
-対応環境:
+The mod sends server and player events to an API selected by the server administrator. It does not include a hosted API, database, database credentials, or private server configuration.
+
+## Environment
 
 - Minecraft: `1.20.1`
 - Forge: `47.4.10`
 - Java: `17`
 - Mod ID: `discord_connector`
-- 生成 jar: `build/libs/discord-connector-forge-1.20.1-0.1.0.jar`
 
-## 機能
+The mod must currently be installed on both the dedicated server and the connecting clients with the same version.
 
-- サーバー起動通知
-- サーバー停止通知
-- プレイヤー参加通知
-- プレイヤー退出通知
-- 5分ごとの Heartbeat
-- Discord 連携コード発行コマンド `/discord link`
-- Bearer 認証付き HTTPS API 通信
-- 専用スレッド `discord-connector-api` による非同期 API 通信
-- 通信エラー、`429`、`5xx` に対する回数制限付き retry
+## Features
 
-## プロジェクト構成
+- Server start and stop notifications
+- Player join and leave notifications
+- Heartbeat requests every five minutes
+- Discord account linking with `/discord link`
+- Bearer-authenticated HTTPS API requests
+- Asynchronous API requests on a dedicated executor
+- Limited retries for `429` and `5xx` responses
+- English and Japanese in-game messages
 
-```text
-forge-1.20.1/
-  common/
-    src/main/java/com/example/discordconnector/
-      api/
-      logging/
-      model/
-      service/
-      util/
-  src/main/java/com/example/discordconnector/
-    config/
-    event/
-    logging/
-    service/
-    DiscordCommand.java
-    DiscordConnectorForge.java
-```
+## Configuration
 
-`common` には、将来 NeoForge など別 loader でも使える Java のみの処理を置いています。Forge や Minecraft のクラスには依存させません。
-
-Forge 固有の config 登録、イベントハンドラ、コマンド登録、Minecraft クラスから common DTO への変換は `src/main/java` 側に置きます。
-
-## 設定
-
-この Mod は Forge の SERVER config を使います。通常のサーバー実行時は、ワールド配下の server config に生成されるファイルを編集します。
-
-例:
+This mod uses a Forge server configuration. After starting the server once, edit the generated file for the world:
 
 ```text
 run/saves/<world>/serverconfig/discord_connector-server.toml
 ```
 
-設定例:
+The public template leaves `api_url` and `api_key` empty. API requests are skipped until an API URL is configured.
 
 ```toml
 [discord_connector]
-server_id = "oceanblock2"
-api_url = "https://minecraft-discord-connector-api.limeivy1221.workers.dev"
-api_key = "mc_xxxxxxxxxxxxxxxxx"
+server_id = "template-server"
+api_url = ""
+api_key = ""
 ```
 
-注意:
+When using your own compatible API, configure it as follows:
 
-- `api_url` には必ず `https://` を含めてください。
-- `api_key` は秘密情報です。Git にコミットしないでください。
-- `run/` は `.gitignore` で除外されています。
+```toml
+[discord_connector]
+server_id = "my-server"
+api_url = "https://your-api.example.com"
+api_key = "replace_with_your_token"
+```
 
-## API 通信
+Keep `api_key` private. Do not commit it to Git or include it in a distributed JAR. Database connection strings, database passwords, and backend secrets must remain on the API server.
 
-すべての API 通信には以下のヘッダーを付けます。
+## In-Game Usage
+
+Run this command in Minecraft:
+
+```text
+/discord link
+```
+
+The mod requests a temporary linking code from the API and displays the Discord command to use:
+
+```text
+/link code:YOUR_CODE
+```
+
+The linking code is valid for 10 minutes.
+
+## API Contract
+
+All requests use the following headers:
 
 ```http
 Content-Type: application/json
 Authorization: Bearer <api_key>
 ```
 
-### サーバー起動
+### Server Start
 
 ```http
 POST /v1/minecraft/events/server-start
@@ -88,12 +85,12 @@ POST /v1/minecraft/events/server-start
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "occurredAt": 1786959377
 }
 ```
 
-### サーバー停止
+### Server Stop
 
 ```http
 POST /v1/minecraft/events/server-stop
@@ -101,12 +98,12 @@ POST /v1/minecraft/events/server-stop
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "occurredAt": 1786959472
 }
 ```
 
-### プレイヤー参加
+### Player Join
 
 ```http
 POST /v1/minecraft/events/join
@@ -114,14 +111,14 @@ POST /v1/minecraft/events/join
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
-  "minecraftName": "Lime_Ivy",
+  "minecraftName": "PlayerName",
   "occurredAt": 1786959466
 }
 ```
 
-### プレイヤー退出
+### Player Leave
 
 ```http
 POST /v1/minecraft/events/leave
@@ -129,15 +126,16 @@ POST /v1/minecraft/events/leave
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
+  "minecraftName": "PlayerName",
   "occurredAt": 1786959472
 }
 ```
 
 ### Heartbeat
 
-サーバー起動中、5分ごとに送信します。
+The mod sends a heartbeat every five minutes while the server is running.
 
 ```http
 POST /v1/minecraft/heartbeat
@@ -145,7 +143,7 @@ POST /v1/minecraft/heartbeat
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "players": [
     "a6c3a42e-66ff-4137-a862-dcab26221947"
   ],
@@ -153,15 +151,7 @@ POST /v1/minecraft/heartbeat
 }
 ```
 
-### Discord 連携コード
-
-Minecraft 内で以下を実行します。
-
-```text
-/discord link
-```
-
-Mod は以下を送信します。
+### Link Code
 
 ```http
 POST /v1/minecraft/link-code
@@ -169,95 +159,40 @@ POST /v1/minecraft/link-code
 
 ```json
 {
-  "serverId": "oceanblock2",
+  "serverId": "my-server",
   "minecraftUuid": "a6c3a42e-66ff-4137-a862-dcab26221947",
-  "minecraftName": "Lime_Ivy"
+  "minecraftName": "PlayerName"
 }
 ```
 
-期待する API レスポンス:
+Expected response:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "code": "123456",
-    "expiresAt": 1786906200
-  }
+  "code": "123456",
+  "expiresAt": 1786906200
 }
 ```
 
-プレイヤーには、Discord 側で以下を実行するよう案内します。
-
-```text
-/link code:123456
-```
-
-## ビルド
-
-この README があるディレクトリで実行します。
+## Build
 
 ```powershell
 .\gradlew.bat clean build
 ```
 
-成功時:
+The JAR is generated at:
 
 ```text
-BUILD SUCCESSFUL
+build/libs/discord-connect-template-forge-1.20.1-0.1.0.jar
 ```
 
-jar は以下に生成されます。
+## Do Not Include
 
-```text
-build/libs/discord-connector-forge-1.20.1-0.1.0.jar
-```
-
-Forge 用 jar には、`common` の class も同梱されます。
-
-## 開発用サーバー起動
-
-```powershell
-.\gradlew.bat runServer
-```
-
-EULA で停止した場合は、以下を編集します。
-
-```text
-run/eula.txt
-```
-
-次のように設定してください。
-
-```text
-eula=true
-```
-
-## 動作確認チェックリスト
-
-Forge 1.20.1 サーバーに jar を配置したあと、以下を確認します。
-
-- サーバー起動 API が `2xx` を返す
-- プレイヤー参加 API が `2xx` を返す
-- プレイヤー退出 API が `2xx` を返す
-- Heartbeat API が `2xx` を返す
-- サーバー停止 API が `2xx` を返す
-- `/discord link` で6桁コードが表示される
-- API 完了ログのスレッド名が `discord-connector-api` になっている
-
-成功ログ例:
-
-```text
-[discord-connector-api/INFO] [co.ex.di.DiscordConnectorForge/]: API request completed: path=/v1/minecraft/events/join, server_id=oceanblock2, status=200, attempts=1
-```
-
-## Git 管理しないもの
-
-以下はコミットしないでください。
-
+- A real API URL
+- A real `api_key`
+- Database connection strings
+- Database usernames or passwords
+- `.env` files
 - `run/`
 - `build/`
 - `.gradle/`
-- 実際の `api_key`
-
-これらは `.gitignore` で除外されています。

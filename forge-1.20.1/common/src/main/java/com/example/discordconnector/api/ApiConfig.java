@@ -5,6 +5,10 @@ public interface ApiConfig {
 
   String apiKey();
 
+  default boolean hasApiUrl() {
+    return !apiUrl().isBlank();
+  }
+
   default boolean hasApiKey() {
     return !apiKey().isBlank();
   }

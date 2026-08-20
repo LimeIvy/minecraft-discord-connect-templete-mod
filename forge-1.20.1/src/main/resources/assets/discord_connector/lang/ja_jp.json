@@ -1,1 +1,6 @@
-{}
+{
+  "discord_connector.command.root": "Discord Connector",
+  "discord_connector.link.requesting": "Discord連携コードを発行しています...",
+  "discord_connector.link.failed": "Discord連携コードの発行に失敗しました。時間をおいて再度お試しください。",
+  "discord_connector.link.success": "Discord連携コードを発行しました。\n%s\n\nDiscordで次のコマンドを実行してください:\n/link code:%s\nこのコードは10分間有効です。"
+}

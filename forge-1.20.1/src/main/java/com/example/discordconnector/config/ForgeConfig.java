@@ -16,14 +16,14 @@ public final class ForgeConfig {
 
     SERVER_ID = builder
         .comment("Unique server identifier used by the Discord Connector API.")
-        .define("server_id", "oceanblock2");
+        .define("server_id", "template-server");
 
     API_URL = builder
-        .comment("Base URL of the Discord Connector API.")
-        .define("api_url", "https://example.workers.dev");
+        .comment("Base URL of your own Discord Connector API. Leave blank to disable API calls.")
+        .define("api_url", "");
 
     API_KEY = builder
-        .comment("Bearer token for the Discord Connector API. Do not commit real keys.")
+        .comment("Bearer token for your own Discord Connector API. Do not commit real keys.")
         .define("api_key", "");
 
     builder.pop();

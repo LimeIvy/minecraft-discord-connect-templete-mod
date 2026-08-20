@@ -1,1 +1,6 @@
-{}
+{
+  "discord_connector.command.root": "Discord Connector",
+  "discord_connector.link.requesting": "Requesting a Discord link code...",
+  "discord_connector.link.failed": "Failed to issue a Discord link code. Please try again later.",
+  "discord_connector.link.success": "Discord link code issued.\n%s\n\nIn Discord, run:\n/link code:%s\nThis code is valid for 10 minutes."
+}

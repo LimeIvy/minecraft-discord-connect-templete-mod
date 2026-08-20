@@ -4,8 +4,8 @@ import com.example.discordconnector.config.ForgeConfig;
 import com.example.discordconnector.model.LinkCodeResponse;
 import com.example.discordconnector.model.PlayerInfo;
 import com.example.discordconnector.service.LinkService;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -19,7 +19,8 @@ public class DiscordCommand {
         .then(Commands.literal("link")
             .executes(context -> link(context.getSource(), linkService)))
         .executes(context -> {
-          context.getSource().sendSuccess(() -> Component.literal("discord-connector"), false);
+          context.getSource().sendSuccess(
+              () -> Component.translatable("discord_connector.command.root"), false);
           return 1;
         }));
   }
@@ -32,7 +33,8 @@ public class DiscordCommand {
         player.getGameProfile().getName(),
         ForgeConfig.serverId());
 
-    source.sendSuccess(() -> Component.literal("Discord連携コードを発行しています..."), false);
+    source.sendSuccess(
+        () -> Component.translatable("discord_connector.link.requesting"), false);
 
     linkService.issueLinkCode(playerInfo)
         .whenComplete((response, throwable) -> player.getServer().execute(() -> {
@@ -42,22 +44,21 @@ public class DiscordCommand {
                 playerInfo.serverId(),
                 playerInfo.uuid(),
                 throwable.toString());
-            player.sendSystemMessage(Component.literal(
-                "Discord連携コードの発行に失敗しました。時間をおいて再度お試しください。"));
+            player.sendSystemMessage(
+                Component.translatable("discord_connector.link.failed"));
             return;
           }
 
-          player.sendSystemMessage(Component.literal(message(response)));
+          player.sendSystemMessage(message(response));
         }));
 
     return 1;
   }
 
-  private static String message(LinkCodeResponse response) {
-    return "Discord連携コードを発行しました。\n"
-        + response.code()
-        + "\n\nDiscordで\n/link code:"
-        + response.code()
-        + "\nを実行してください。\nこのコードは10分間有効です。";
+  private static Component message(LinkCodeResponse response) {
+    return Component.translatable(
+        "discord_connector.link.success",
+        response.code(),
+        response.code());
   }
 }
